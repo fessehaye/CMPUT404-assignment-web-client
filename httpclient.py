@@ -23,6 +23,7 @@ import socket
 import re
 # you may use urllib to encode data appropriately
 import urllib
+from urlparse import urlparse
 
 def help():
     print "httpclient.py [GET/POST] [URL]\n"
@@ -35,18 +36,46 @@ class HTTPRequest(object):
 class HTTPClient(object):
     #def get_host_port(self,url):
 
-    def connect(self, host, port):
+    def connect(self, url):
         # use sockets!
-        return None
+        parse = urlparse(url)
+
+        try:
+            host, port = parse.netloc.split(':')
+        except ValueError:
+            host, port = parse.netloc, 80
+        
+        sockets = socket.create_connection((host, port), 15)
+        return sockets
+
 
     def get_code(self, data):
-        return None
+        code = data.split()[1]
+        return int(code)
 
-    def get_headers(self,data):
+    def get_headers(self,data,type,arg):
+
+        if (type=="GET"):
+            header = "GET " + data + " HTTP/1.0\n\n"
+            return header
+
+        elif(type=="POST"):
+            header = "POST " + data + " HTTP/1.0\n"
+            if arg != None:
+                postdata = urllib.urlencode(arg)
+                header += ('Content-Length: '+
+                             str(len(postdata))+'\n\n'+
+                             postdata)
+            
+            return header + "\n"
+        
         return None
 
     def get_body(self, data):
-        return None
+        counter = 0
+        lines = data.splitlines()
+        counter = lines.index("")
+        return "\r\n".join(lines[counter:])
 
     # read everything from the socket
     def recvall(self, sock):
@@ -61,13 +90,21 @@ class HTTPClient(object):
         return str(buffer)
 
     def GET(self, url, args=None):
-        code = 500
-        body = ""
+        soc = self.connect(url)
+        Header = self.get_headers(url,"GET",args)
+        soc.sendall(Header)
+        return_value = self.recvall(soc)
+        code = self.get_code(return_value)
+        body = self.get_body(return_value)
         return HTTPRequest(code, body)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+        soc = self.connect(url)
+        Header = self.get_headers(url,"POST",args)
+        soc.sendall(Header)
+        return_value = self.recvall(soc)
+        code = self.get_code(return_value)
+        body = self.get_body(return_value)
         return HTTPRequest(code, body)
 
     def command(self, url, command="GET", args=None):
